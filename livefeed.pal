@@ -1,0 +1,171 @@
+{===============================================================================
+ SAM Live DJ Feed
+ PAL Script created on 4/8/2008 3:58:40 AM
+            updated on 10/03/2008 6:30:09 AM
+			updated on 04/13/2010  3:20:15 AM
+this script will run on a loop waiitng for the liefeed event
+ the event is triggered fromt he SAM broadcaster via port 1221
+===============================================================================}
+{ testing and debug mode...enables memory leak warning by default }
+var debugOn : Boolean = true;
+{===============================================================================
+Create the table if it doesn't already exist
+---  this is the table that holds the live show info
+
+SELECT id,artist,title,relay,archive FROM djqueue
+INSERT INTO live_show_dates (showID,date)
+===============================================================================}
+ExecSQL('CREATE TABLE IF NOT EXISTS djqueue ' +
+       '(id MEDIUMINT(9)NOT NULL AUTO_INCREMENT KEY, ' +
+       'artist TEXT(255), title TEXT(255), relay TEXT(255), ' +
+       'archive TEXT(255))', []);
+
+ExecSQL('CREATE TABLE IF NOT EXISTS live_show_dates ' +
+       '(showID MEDIUMINT(9)NOT NULL KEY, ' +
+       'date TEXT(255))', []);
+
+{ we want this script to fire and loop. }
+{   if we didn't loop, we wouldnt be able to let people back on the streamz }
+PAL.Loop := True;
+
+  { wait for the trigger via SAM requests / events port }
+  PAL.WaitForEvent('livefeed');
+
+  { declare some variables and stuff }
+  var E : TDataSet;
+  var F : TDataSet;
+  var liveshow, nowplaying, dateid, showdate, artistname, showtitle, feedURL, archive, curTime, queueID, tfilename, filename : string;
+  var lpos, lcount : integer;
+  var Song : TSongInfo;
+  var mytime : DateTime = now;
+  var FailIfExists : Boolean;
+  var URL, URL2 : String;
+
+  URL := 'http://master.tech-noid.net/station/tagarchive.php';
+  URL2 := 'http://master.tech-noid.net/station/generate_rss.php';
+  FailIfExists := False;
+
+{ speed up execution of the data }
+PAL.LockExecution;
+
+  { clear out the old comments and ratings on the database }
+  {ExecSQL('DELETE FROM userratings WHERE songID IN (114,117,130)',[]);
+  ExecSQL('DELETE FROM songcomments WHERE songID IN (114,117,130)',[]);
+  ExecSQL('UPDATE songratings SET rating=0, timesrated=0 WHERE (songID=114 OR songID=117 OR songID=130)',[]);
+   }
+  { build the sql table we want to use (the queued dj info) }
+  E := Query('SELECT id,artist,title,relay,archive FROM djqueue ORDER BY ID DESC LIMIT 1', [], true);
+
+  {populate some data }
+  queueID := E['id'];
+  artistname := E['artist'];
+  showtitle := E['title'];
+  feedURL := E['relay'];
+  archive := E['archive'];
+
+  
+  { build some new song info to show the users }
+  Song := TSongInfo.Create;
+    Song['artist'] := '*LIVE*  ' + artistname;
+    Song['title'] := showtitle + '  *LIVE*  ';
+
+  { add the live show to the queue in position 1 }
+  Queue.AddURL(feedURL,ipTop);
+
+  { modify the sql in the table....we want to be able to show who played }
+  ExecSQL('UPDATE songlist SET artist = :artist, title = :title WHERE filename = :filename',[Song['artist'] ,Song['title'], feedURL]);
+
+  { update the djqueue table to show when the stream was kciked off...this is for archive purposes }
+  curTime := DateTimeToStr(mytime);
+  ExecSQL('INSERT INTO live_show_dates (showID,date) VALUES (' + QuotedStr(queueID) + ', ' + QuotedStr(curTime) + ')',[]);
+
+{ slow us back down to a normal speed }
+PAL.UnlockExecution;
+
+  { let us wait 20 seconds (10 on dj end) to make sure the relay is queued }
+  PAL.WaitForTime('+00:00:10');
+  { make the dj relay live to the station }
+  ActivePlayer.FadeToNext;
+  PAL.WaitForTime('+00:00:05');
+  
+  F := Query('SELECT filename FROM historylist ORDER BY date_played DESC LIMIT 1', [], true);
+  nowplaying := F['filename'];
+  
+  WriteLn('DJ RELAY -> : ' + feedURL);
+  WriteLn('NOW PLAYING -> ' + nowplaying);
+  If (feedURL = nowplaying) then
+    begin
+      WriteLn('LIVE SHOW -> start the archiver, wait for song change (end of show)');
+      Encoders[1].Start;
+      PAL.WaitForPlayCount(1);
+    end
+  else
+    begin
+      WriteLn('NOT LIVE -> purging the archive if one is present');
+      DeleteFile('D:\Content\FEED\stream.mp3');
+    end;
+
+ If Encoders[1].Started then
+    Encoders[1].Stop;
+
+{ clean up the artist and title for the archive }
+PAL.LockExecution;
+tfilename := artistname + '_-_' + showtitle + '.' + FormatDateTime('mm-dd-yyyy-hhmmss', mytime) + '.mp3';
+lpos := 1;
+lcount := Length(tfilename);
+while (lpos <= lcount) do
+    begin
+        case tfilename[lpos] of
+        '/'    : filename := filename + '';
+        '\'    : filename := filename + '';
+        ':'    : filename := filename + '';
+        '"'    : filename := filename + '';
+        '*'    : filename := filename + '';
+        '?'    : filename := filename + '';
+        '<'    : filename := filename + '_';
+        '>'    : filename := filename + '_';
+        '|'    : filename := filename + '_';
+        ' '    : filename := filename + '_';
+        '%20'  : filename := filename + '_';
+        else
+            filename := filename + tfilename[lpos];
+        end;
+        Inc(lpos, 1);
+    end;
+PAL.UnlockExecution;
+// output the filename for shits and giggles
+Writeln('ARCHIVE -> filename: ' + filename);
+
+{ wait for the file to show up }
+PAL.WaitForTime('+00:00:10');
+
+{ set the ID3 tags for the file }
+Writeln('ARCHIVE -> tag the archive w/ valid ID3v2 tag');
+WebToFile('D:\Content\FEED\archive_tag.txt',URL);
+PAL.WaitForTime('+00:00:10');
+
+{ determine if the archive is public or private..if private move to private folder otherwise move to podcast folder }
+if (archive = 'Yes') then
+    begin
+        WriteLn('ARCHIVE (public)-> create the named file');
+        CopyFile('D:\Content\FEED\stream.mp3', 'D:\Content\SITE\archives\' + filename, FailIfExists);
+        PAL.WaitForTime('+00:00:10');
+        WriteLn('ARCHIVE (public)-> delete the original file');
+        DeleteFile('D:\Content\FEED\stream.mp3');
+        PAL.WaitForTime('+00:00:10');
+        WriteLn('ARCHIVE (public)-> build the new podcast xml file');
+        WebToFile('D:\Content\FEED\archive_rss.txt', URL2);
+    end
+else
+    begin
+        WriteLn('ARCHIVE (private)-> create the named file');
+        CopyFile('D:\Content\FEED\stream.mp3', 'D:\Content\FEED\Archived\' + filename, FailIfExists);
+		      PAL.WaitForTime('+00:00:10');
+		      WriteLn('ARCHIVE (private)-> delete the original');
+		      DeleteFile('D:\Content\FEED\stream.mp3');
+    end;
+
+{clear the song instance we created...be kind to memory }
+Song.Free;
+E.Free;
+F.Free;

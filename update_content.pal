@@ -1,0 +1,41 @@
+{
+  This script is used to populate the station categogies
+  It should run at midnight (station time) to keep things tidy
+  
+  created by Aaron Cupp (disfigure@techno-dnb.com
+   Version 1.0    modified 10-12-2008 @ 5:35am
+   Version 1.0.1  modified 04-14-2010 @ 3:23am
+   
+}
+
+{ testing and debug mode...enables memory leak warning by default }
+ var debugOn : Boolean = true;
+
+{ lets check the directories to see if anything changed }
+ DIR['d:\Content\Music\Breaks\'].Rescan;
+// DIR['d:\Content\Music\Drum&Bass\'].Rescan;
+ DIR['d:\Content\Music\Techno\'].Rescan;
+ DIR['d:\Content\Music\House\'].Rescan;
+ DIR['d:\Content\Music\IDM\'].Rescan;
+ DIR['d:\Content\Music\Mixes\'].Rescan;
+ DIR['d:\Content\SITE\archives\'].Rescan;
+{ now we purge the files from the categories }
+
+ CAT['Breaks'].Clear;
+// CAT['Drum&Bass'].Clear;
+ CAT['Techno'].Clear;
+ CAT['House'].Clear;
+ CAT['IDM'].Clear;
+ CAT['Mixes'].Clear;
+ CAT['Archives'].Clear;
+ 
+{ tinme to populate the categories with the updated songs }
+ CAT['Breaks'].AddDir('d:\Content\Music\Breaks\', False, ipBottom);
+// CAT['Drum&Bass'].AddDir('d:\Content\Music\Drum&Bass\', False, ipBottom);
+ CAT['Techno'].AddDir('d:\Content\Music\Techno\', False, ipBottom);
+ CAT['House'].AddDir('d:\Content\Music\House\', False, ipBottom);
+ CAT['IDM'].AddDir('d:\Content\Music\IDM\', False, ipBottom);
+ CAT['Mixes'].AddDir('d:\Content\Music\Mixes\', False, ipBottom);
+ CAT['Archives'].AddDir('d:\Content\SITE\archives\', False, ipBottom);
+
+

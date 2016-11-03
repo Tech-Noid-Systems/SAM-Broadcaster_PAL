@@ -1,0 +1,80 @@
+{ ABOUT:
+    Script to change title displayed in listener's streaming player.
+    This script will read a banner text source file to get a list of
+    messages to display, then switch between the normal song information
+    and the banner text on regular intervals.
+    
+    Not only does this make for a more interesting experience for listeners,
+    it also prevents stream rippers from being able to make copies of your
+    tracks.
+    
+  USAGE:
+    a) Create a normal plain text file and type your banner messages into this file.
+       Each new line should contain one new banner message.
+    b) Change the configuration settings below to point to your file and
+       specify the interval to wait between changes.
+}
+
+{ testing and debug mode...enables memory leak warning by default }
+var debugOn : Boolean = true;
+    
+{ CONFIGURATION }
+{==================================================}
+const bannertext_file = 'D:\Content\ADMIN\PAL\TitleStreamBanner.txt';
+const change_interval = '+00:02:00';
+{==================================================}
+
+
+{ IMPLEMENTATION }
+{--------------------------------------------------}
+var CurSong : TSongInfo;
+var UpdSong : TSongInfo;
+var Banners : TStringList;
+var Toggle  : Boolean = True;
+var LinePos : Integer = 0;
+
+{Set this script to restart itself}
+PAL.Loop := True;
+
+{ Create some objects that we will need}
+UpdSong := TSongInfo.Create;
+Banners := TStringList.Create;
+
+{ Load banner lines into stringlist object }
+if FileExists(bannertext_file) then
+ Banners.LoadFromFile(bannertext_file)
+else
+ WriteLn('Banner source file does not exist!');
+ 
+LinePos := 0;
+while (LinePos<Banners.Count) do
+begin
+  {Wait for specified time}
+  PAL.WaitForTime(change_interval);
+  
+  {Retrieve the current banner line and assign it to song object}
+  UpdSong['title'] := Banners[LinePos];
+  
+  {Tell encoders to update song information:
+    When Toggle is True, we use the normal song information from
+    the active player - otherwise we use our banner song object
+  }
+  Toggle := not Toggle;
+  if Toggle then
+   begin
+    CurSong := ActivePlayer.GetSongInfo;
+     Encoders.SongChange(CurSong);
+    CurSong.Free;
+   end
+  else
+    Encoders.SongChange(UpdSong);
+
+  {Move to the next line in the banner file before we continue}
+  LinePos := LinePos + 1;
+end;
+
+{Destroy objects once we no longer need them}
+Banners.Free;
+UpdSong.Free;
+CurSong.Free;
+{--------------------------------------------------}

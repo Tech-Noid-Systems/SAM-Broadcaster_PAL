@@ -1,0 +1,11 @@
+{ PAL Script created on 4/15/2008 4:26:36 AM }
+{==================================================}
+
+PAL.Loop := True;
+
+  PAL.WaitForEvent ('skip_track');
+  
+  WriteLn('we be skipping this track');
+  PAL.WaitForTime('+00:00:02');
+  ActivePlayer.FadeToNext;
+  

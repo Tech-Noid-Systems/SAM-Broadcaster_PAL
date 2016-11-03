@@ -1,0 +1,130 @@
+{===============================================================================
+Listener Counts and Statistics PAL script
+-  listener_counts.pal
+-  last edit on 4.13.2008   @  00:04 PST
+
+Overview:
+  This script will keep track of your listsner counts.
+  The script fires once a minute and counts the listeners on all your relays
+  The script uses 2 database tables to keep the information.
+  --  if you do not have these tables in you database, they will be created.
+   1.  relay_counts  :  This table hold the overall listener counts.
+                        This table does not clear itself out.
+                        Great for user stats.
+   2.  am_relays  :  This table holds information about each relay
+                     The relays are the ones listed in the Statistic Relays area.
+                     This table clears itself on each loop
+===============================================================================}
+{ testing and debug mode...enables memory leak warning by default }
+var debugOn : Boolean = true;
+
+{===============================================================================
+Create the table if it doesn't already exist
+---  this is the table that holds the total listener counts
+===============================================================================}
+ExecSQL('CREATE TABLE IF NOT EXISTS relay_counts ' +
+       '(id MEDIUMINT(9)NOT NULL AUTO_INCREMENT KEY, ' +
+       'viewers MEDIUMINT(9) DEFAULT 0, date TEXT(255))', []);
+{===============================================================================
+Create the table if it doesn't already exist
+---  this is the table that holds the info for each of the listener relays
+===============================================================================}
+ExecSQL('CREATE TABLE IF NOT EXISTS sam_relays ' +
+       '(id MEDIUMINT(9), status TEXT(255), viewers MEDIUMINT(9), ' +
+       'viewers_high MEDIUMINT(9), details TEXT(255), bitrate MEDIUMINT(9), ' +
+       'stream_format TEXT(255))', []);
+{===============================================================================
+Create the table if it doesn't already exist
+---  this is the table that holds the info for the peak listener counts
+===============================================================================}
+ExecSQL('CREATE TABLE IF NOT EXISTS listener_peak ' +
+       '(id MEDIUMINT(9)NOT NULL AUTO_INCREMENT KEY, ' +
+       'listeners MEDIUMINT(9) DEFAULT 0, artist TEXT(255), ' +
+       'title TEXT(255), date_played TEXT(255))', []);
+
+{ Time to Loop }	   
+PAL.LOOP := True;	   
+{===============================================================================
+declare our varibale that are used in this script.
+  we can set these to some inital values
+===============================================================================}
+var I : Integer;
+var S : TDataSet;
+
+var nowplaying, cCount, oCount : TDataSet;
+var curCount, oldCount : Integer;
+var curArtist, curTitle, curTime : String;
+
+var mytime : DateTime = now;
+var relayCount : Integer = 0;
+var totalCount : Integer = 0;
+{===============================================================================
+let us count the listerns we have on all relays.
+---  use this information to show total listeners on your webpage or in IRC
+===============================================================================}
+PAL.LockExecution;
+  for I := 0 to Relays.Count-1 do
+    begin 
+      relayCount := Relays[I].Viewers;
+      totalCount := totalCount + relayCount;
+      curTime := DateTimeToStr(mytime);
+    end;
+    totalCount := totalCount;
+    WriteLn('Updating the listener count table');
+    ExecSQL('INSERT INTO relay_counts (viewers,date) VALUES (' + IntToStr(totalCount) + ', ' + QuotedStr(curTime) + ')',[]);
+PAL.UnlockExecution;
+{===============================================================================
+time to do the relays by themselves
+---  data can be used to make a nice servers screen on your webpage
+---  use this data for relay info as well
+===============================================================================}
+PAL.LockExecution;
+  for I := 0 to Relays.Count-1 do
+    begin
+      WriteLn('Updating the relay server db - all the infoz ');
+      Execsql('INSERT INTO sam_relays VALUES (' + IntToStr(I) + ', ' + QuotedStr(Relays[I].Status) + ', ' + IntToStr(Relays[I].Viewers) + ', ' + IntToStr(Relays[I].Viewers_High) + ', ' + QuotedStr(Relays[I].Details) + ', ' + IntToStr(Relays[I].Bitrate) + ', ' + QuotedStr(Relays[I].Format) + ')',[]);
+    end;
+PAL.UnlockExecution;
+{===============================================================================
+lets calculate the peak listener count
+---  use this information to show total listeners on your webpage or in IRC
+===============================================================================}
+PAL.LockExecution;
+  nowplaying := Query('SELECT songlist.artist, songlist.title, historylist.date_played FROM historylist,songlist WHERE (historylist.songID = songlist.ID) AND (songlist.songtype="S" OR songlist.songtype="J") ORDER BY historylist.date_played DESC LIMIT 1', [], true);
+  cCount := Query('SELECT viewers FROM relay_counts ORDER BY id DESC LIMIT 1', [], true);
+  oCount := Query('SELECT listeners FROM listener_peak ORDER BY listeners DESC LIMIT 1', [], true);
+
+  { put the data into usefull containers }
+  curCount := StrToInt(cCount['viewers']);
+  oldCount := StrToInt(oCount['listeners']);
+  curArtist := nowplaying['artist'];
+  curTitle := nowplaying['title'];
+  curTime := DateTimeToStr(mytime);
+
+  WriteLn( curCount );
+  WriteLn( oldCount );
+  WriteLn( curArtist );
+  WriteLn( curTitle );
+  WriteLn( curTime );
+
+  if (curCount > oldCount) then
+    begin
+      WriteLn('NEW PEAK!! Time to update the peak count');
+      ExecSQL('INSERT INTO listener_peak (listeners,artist,title,date_played) VALUES (' + IntToStr(curCount) + ', ' + QuotedStr(curArtist) + ', ' + QuotedStr(curTitle) + ', ' + QuotedStr(curTime) + ')',[]);
+    end;
+PAL.UnlockExecution;
+
+{ clean up the created data sets }
+S.Free;
+nowplaying.Free;
+cCount.Free;
+oCount.Free;
+{===============================================================================
+Wait for 1 minute to update table
+===============================================================================}
+PAL.WaitForTime('+00:01:00');
+{===============================================================================
+Clear the table on each loop
+---  we clear out the relay table every loop to keep it tidy
+===============================================================================}
+Execsql('TRUNCATE sam_relays',[]);

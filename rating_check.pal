@@ -1,0 +1,48 @@
+{===============================================================================
+  SAM Song Rating Checker
+  PAL Script to check and see if the song has a rating in the master table
+  
+  created 11/6/2008 @ 3:32 AM
+  
+  This script is used w/ the SAM Radio Station Bot
+  
+  created by Aaron Cupp (disfigure@techno-dnb.com)
+===============================================================================}
+{ testing and debug mode...enables memory leak warning by default }
+var debugOn : Boolean = true;
+
+var E : TDataSet;
+var F : TDataSet;
+var nowplaying, showID, ratingID, rating, timesrated : Integer;
+var artist, title, filename : String;
+{ we want this script to fire and loop. }
+{   if we didn't loop, we wouldnt be able to let people back on the streamz }
+PAL.Loop := True;
+  { on song change check to see if the rating exists in the table; if not
+    add the songID and default data to the rating table }
+  PAL.WaitForPlayCount(1);
+  
+  E := Query('SELECT songID, artist, title, filename FROM historylist ORDER BY date_played DESC LIMIT 1', [], true);
+    nowplaying := E['songID'];
+    artist := E['artist'];
+    title := E['title'];
+    filename := E['filename'];
+  
+  F := Query('SELECT songID, rating, timesrated FROM songratings WHERE (songID=' + nowplaying + ')',[], true);
+    ratingID := F['songID'];
+    rating := F['rating'];
+    timesrated := F['timesrated'];
+
+  {debug yo}
+  WriteLn(nowplaying);
+  WriteLn(artist);
+  WriteLn(title);
+  WriteLn(filename);
+  WriteLn(ratingID);
+  WriteLn(rating);
+  WriteLn(timesrated);
+  
+  { clean up memory }
+  E.Free;
+  F.Free;
+  
