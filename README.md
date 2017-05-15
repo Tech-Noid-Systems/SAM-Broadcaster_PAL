@@ -1,5 +1,10 @@
 # Tech-Noid Systems PAL Scripts
 
+If you have used these scripts and tools and feel like supporting my work, please send me some funds!
+
+* Bitcoin (BTC):  1Lei3ikgSrm4JrMYn2Fh3VWhkaBQ4oYM4N
+* Monero  (XMR):  499QFXhZWBfXAuqqPJUY7ihWDWxzSDTTf7MnVQwYd6xZcSzbTFQY7B4i7zB5mTmXnQfdf6RsDmjdZJNBF6oeeW8xBz7sWa5
+
 All scripts are written in [PAL (Playlist Automation Language)][1], a scripting language based off Delphi, created by [Spacial Audio][2].  The langugage is used exclusively in [SAM Broadcaster][3] for automating features of the broadcast software.
 
 ## Scripts:
